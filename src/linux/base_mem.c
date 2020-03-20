@@ -22,23 +22,17 @@
 #include <stdarg.h>
 #include <pthread.h>
 #include <semaphore.h>
-#include <fwk/basic/types.h>
-#include <fwk/basic/basictrace.h>
-#include <fwk/memmgmt/memmgmt.h>
-#include "memmgmt.h"
+#include <types.h>
+#include <trace.h>
+#include <mem.h>
 
 
-typedef struct BASE_MEM_LINK
-{
-	struct BASE_MEM_LINK *next;		/*<< The next free memory in the list */
-	UINT32 size;						/*<< The size of the free memory */
-} base_mem_link_t;
 
 static char gbasemempool[ BASE_MEM_TOTAL_MEM_SIZE ];
 
 static UINT32 gbasememfreebytesremaining = 0U;
 
-static UINT32 gu4basememminfreebytesremaining = 0U;
+static UINT32 gbasememminfreebytesremaining = 0U;
 
 static UINT32 gbasememallocatedbit = 0;
 
@@ -55,7 +49,7 @@ UINT32 base_mem_freesize_get( void )
 
 UINT32 base_mem_minusedsize_get( void )
 {
-	return gu4basememminfreebytesremaining;
+	return gbasememminfreebytesremaining;
 }
 
 static void base_mem_insert( base_mem_link_t *pMemToInsert )
@@ -120,12 +114,12 @@ static void base_mem_init( void )
 	UINT32 ui4MemTotalSize = BASE_MEM_TOTAL_MEM_SIZE;
 	base_mem_link_t *pFirstFreeMem;
 	
-	base_trace_print(BASE_TRACE_MODULE_SYS,BASE_TRACE_LEVEL_INF,"F:%s memory init start.\n",__func__);
+	MEM_INF("F:%s memory init start.\n",__func__);
 
 	i4res = sem_init(&gfwkmemmgmtSemId, 0, 1);
 	if (i4res != 0)
 	{	  
-		base_trace_print(BASE_TRACE_MODULE_SYS,BASE_TRACE_LEVEL_ERR,"Semaphore gfwkmemmgmtSemId initialization failed.\n");
+		MEM_ERR("Semaphore gfwkmemmgmtSemId initialization failed.\n");
 		return;
 	}
 
@@ -138,7 +132,7 @@ static void base_mem_init( void )
 	}
 	pi1AlignedMem = ( char * ) ui4Address;
 	
-	base_trace_print(BASE_TRACE_MODULE_SYS,BASE_TRACE_LEVEL_INF,"ui4Address:0x%x,total size:0x%x.\n",ui4Address,ui4MemTotalSize);
+	MEM_INF("ui4Address:0x%x,total size:0x%x.\n",ui4Address,ui4MemTotalSize);
 
 	gbasememstart.next = ( void * ) pi1AlignedMem;
 	gbasememstart.size = ( UINT32 ) 0;
@@ -150,19 +144,19 @@ static void base_mem_init( void )
 	gbasememend->size = 0;
 	gbasememend->next = NULL;
 
-	base_trace_print(BASE_TRACE_MODULE_SYS,BASE_TRACE_LEVEL_INF,"gbasememstart next:0x%x,gbasememend:0x%x.\n",gbasememstart.next,gbasememend);
+	MEM_INF("gbasememstart next:0x%x,gbasememend:0x%x.\n",gbasememstart.next,gbasememend);
 
 	pFirstFreeMem = ( void * ) pi1AlignedMem;
 	pFirstFreeMem->size = ui4Address - (fwk_addr_t) pFirstFreeMem;
 	pFirstFreeMem->next = gbasememend;
 
-	gu4basememminfreebytesremaining = pFirstFreeMem->size;
+	gbasememminfreebytesremaining = pFirstFreeMem->size;
 	gbasememfreebytesremaining = pFirstFreeMem->size;
 
 	/* Work out the position of the top bit in a u32_t variable. */
 	gbasememallocatedbit = ( ( UINT32 ) 1 ) << ( ( sizeof( UINT32 ) * 8 ) - 1 );
 
-	base_trace_print(BASE_TRACE_MODULE_SYS,BASE_TRACE_LEVEL_INF,"gbasememallocatedbit:0x%x,gbasememfreebytesremaining:0x%x.\n",gbasememallocatedbit,gbasememfreebytesremaining);
+	MEM_INF("gbasememallocatedbit:0x%x,gbasememfreebytesremaining:0x%x.\n",gbasememallocatedbit,gbasememfreebytesremaining);
 }
 
 
@@ -172,7 +166,7 @@ void *base_mem_malloc( UINT32 u4Size )
 	base_mem_link_t *pMem, *pPreviousMem, *pNewMem;
 	void *pvReturn = NULL;
 
-	base_trace_print(BASE_TRACE_MODULE_SYS,BASE_TRACE_LEVEL_INF,"F:%s size:0x%x.\n",__func__,u4Size);
+	MEM_INF("F:%s size:0x%x.\n",__func__,u4Size);
 
 	if( gbasememend == NULL )
 	{
@@ -182,7 +176,7 @@ void *base_mem_malloc( UINT32 u4Size )
 	sem_wait(&gfwkmemmgmtSemId);	
 	{
 		
-		base_trace_print(BASE_TRACE_MODULE_SYS,BASE_TRACE_LEVEL_INF,"size:0x%x,gbasememallocatedbit:0x%x.\n",u4Size,gbasememallocatedbit);
+		MEM_INF("size:0x%x,gbasememallocatedbit:0x%x.\n",u4Size,gbasememallocatedbit);
 		if( ( u4Size & gbasememallocatedbit ) == 0 )
 		{
 			if( u4Size > 0 )
@@ -194,7 +188,7 @@ void *base_mem_malloc( UINT32 u4Size )
 					u4Size += ( BASE_MEM_MIN_MEM_SIZE - ( u4Size & BASE_MEM_MIN_MEM_SIZE_MASK ) );
 					if( ( u4Size & BASE_MEM_MIN_MEM_SIZE_MASK ) != 0 )
 					{
-						base_trace_print(BASE_TRACE_MODULE_SYS,BASE_TRACE_LEVEL_ERR,"F:%s size(0x%x) error.\n",__func__,u4Size);
+						MEM_ERR("F:%s size(0x%x) error.\n",__func__,u4Size);
 						return NULL;
 					}	
 				}
@@ -226,9 +220,9 @@ void *base_mem_malloc( UINT32 u4Size )
 
 					gbasememfreebytesremaining -= pMem->size;
 
-					if( gbasememfreebytesremaining < gu4basememminfreebytesremaining )
+					if( gbasememfreebytesremaining < gbasememminfreebytesremaining )
 					{
-						gu4basememminfreebytesremaining = gbasememfreebytesremaining;
+						gbasememminfreebytesremaining = gbasememfreebytesremaining;
 					}
 
 					pMem->size |= gbasememallocatedbit;
@@ -256,12 +250,12 @@ void base_mem_free( void *pMemaddr )
 
 		if( ( pMem->size & gbasememallocatedbit ) == 0 )
 		{
-			base_trace_print(BASE_TRACE_MODULE_SYS,BASE_TRACE_LEVEL_ERR,"F:%s memory has free:0x%x.\n",__func__,pMemaddr);
+			MEM_ERR("F:%s memory has free:0x%x.\n",__func__,pMemaddr);
 			return;
 		}
 		if( pMem->next != NULL )
 		{
-			base_trace_print(BASE_TRACE_MODULE_SYS,BASE_TRACE_LEVEL_ERR,"F:%s next is NULL:0x%x.\n",__func__,pMemaddr);
+			MEM_ERR("F:%s next is NULL:0x%x.\n",__func__,pMemaddr);
 			return;
 		}
 
@@ -280,7 +274,7 @@ void base_mem_free( void *pMemaddr )
 			return;
 		}
 	}
-	base_trace_print(BASE_TRACE_MODULE_SYS,BASE_TRACE_LEVEL_ERR,"F:%s pMemaddr is NULL.\n",__func__);
+	MEM_ERR("F:%s pMemaddr is NULL.\n",__func__);
 	return;
 }
 
@@ -288,7 +282,7 @@ void* base_mem_set(void *pDest, int32_t i4Value, UINT32 u4Size)
 {
 	if(pDest == NULL || u4Size <= 0) 
 	{
-		base_trace_print(BASE_TRACE_MODULE_SYS,BASE_TRACE_LEVEL_ERR,"F:%s param is error.\n",__func__);
+		MEM_ERR("F:%s param is error.\n",__func__);
 		return NULL;
 	}
     char* pDestStart = (char*)pDest;
@@ -301,7 +295,7 @@ void *base_mem_cpy(void *pDest, const void *pSrc, UINT32 u4Size)
 {  
 	if(pDest == NULL || pSrc == NULL || u4Size <= 0) 
 	{
-		base_trace_print(BASE_TRACE_MODULE_SYS,BASE_TRACE_LEVEL_ERR,"F:%s param is error.\n",__func__);
+		MEM_ERR("F:%s param is error.\n",__func__);
 		return NULL;
 	}
 	char *pSrcTemp = (char *)pSrc;

@@ -17,7 +17,8 @@
 
 #ifndef BASE_MEM_H
 #define BASE_MEM_H
-#include <base_types.h>
+#include <stdlib.h>
+#include <types.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,6 +26,12 @@ extern "C" {
 
 #ifndef _MEM_TYPES_
 #define _MEM_TYPES_
+
+typedef struct BASE_MEM_LINK
+{
+	struct BASE_MEM_LINK *next;		/*<< The next free memory in the list */
+	UINT32 size;						/*<< The size of the free memory */
+} base_mem_link_t;
 
 #define BASE_MEM_TOTAL_MEM_SIZE		(( UINT32 )128*1024*1024)	/*total 128 Mbytes memory */
 
